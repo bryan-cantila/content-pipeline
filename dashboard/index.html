@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Content Pipeline</title>
+<link rel="icon" href="../assets/logo.png">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#150a2e">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Pipeline">
+<link rel="apple-touch-icon" href="icon-180.png">
+<style>
+:root{
+  --bg:#150a2e; --bg2:#1e1240; --card:#211548; --line:#3a2a6e;
+  --txt:#f0eafc; --mut:#a99bc8; --vio:#7c3aed; --amb:#f5a623; --grn:#22c55e; --red:#ef4444;
+  --r:12px;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--txt);font:15px/1.55 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+a{color:var(--amb)}
+.wrap{max-width:1080px;margin:0 auto;padding:24px 18px 60px}
+header.top{display:flex;align-items:center;gap:12px;padding:14px 0;border-bottom:1px solid var(--line);margin-bottom:20px;flex-wrap:wrap}
+header.top img{width:38px;height:38px;border-radius:10px}
+header.top h1{font-size:19px;margin:0}
+header.top .sub{color:var(--mut);font-size:12.5px;margin:0}
+.spacer{flex:1}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:20px;margin-bottom:16px}
+h2{font-size:16px;margin:0 0 12px}
+h3{font-size:14px;margin:18px 0 8px;color:var(--mut);text-transform:uppercase;letter-spacing:.06em}
+label{display:block;font-size:13px;color:var(--mut);margin:10px 0 4px}
+input,select,textarea{width:100%;background:var(--bg2);border:1px solid var(--line);color:var(--txt);border-radius:8px;padding:10px 12px;font-size:14px}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--vio);border-color:var(--vio)}
+textarea{min-height:90px;resize:vertical;font-family:inherit}
+button{cursor:pointer;border:1px solid var(--line);background:var(--bg2);color:var(--txt);border-radius:8px;padding:10px 16px;font-size:14px}
+button.primary{background:var(--vio);border-color:var(--vio);color:#fff;font-weight:600}
+button.warn{background:var(--amb);border-color:var(--amb);color:#1a1005;font-weight:600}
+button.danger{color:#fca5a5;border-color:#7f1d1d;background:#2a1215}
+button.ghost{background:transparent}
+button.small{padding:6px 10px;font-size:12.5px}
+button:disabled{opacity:.5;cursor:default}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:end}
+.row>*{flex:1;min-width:150px}
+.err{background:#2a1215;border:1px solid #7f1d1d;color:#fca5a5;border-radius:8px;padding:10px 14px;margin:12px 0;font-size:13.5px}
+.okmsg{background:#0f2a1a;border:1px solid #14532d;color:#86efac;border-radius:8px;padding:10px 14px;margin:12px 0;font-size:13.5px}
+.mut{color:var(--mut);font-size:13px}
+.tabs{display:flex;gap:6px;margin-bottom:16px;flex-wrap:wrap}
+.tabs button{border-radius:999px}
+.tabs button.on{background:var(--vio);border-color:var(--vio);color:#fff}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px}
+.topic{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:16px}
+.topic .t{font-weight:650;font-size:15px}
+.topic .meta{color:var(--mut);font-size:12.5px;margin:6px 0 10px;display:flex;gap:10px;flex-wrap:wrap}
+.topic .acts{display:flex;gap:8px;flex-wrap:wrap}
+.pill{font-size:11.5px;font-weight:700;border-radius:999px;padding:3px 10px;letter-spacing:.04em}
+.pill.new{background:rgba(124,58,237,.15);color:#c4b5fd;border:1px solid rgba(124,58,237,.4)}
+.pill.approved{background:rgba(34,197,94,.15);color:#4ade80;border:1px solid rgba(34,197,94,.4)}
+.pill.rejected{background:rgba(139,152,179,.15);color:var(--mut);border:1px solid var(--line)}
+.pill.draft{background:rgba(245,166,35,.15);color:#fcd34d;border:1px solid rgba(245,166,35,.4)}
+.pill.published{background:rgba(34,197,94,.15);color:#4ade80;border:1px solid rgba(34,197,94,.4)}
+.pill.queued{background:rgba(96,165,250,.15);color:#93c5fd;border:1px solid rgba(96,165,250,.4)}
+.pill.posted{background:rgba(34,197,94,.15);color:#4ade80;border:1px solid rgba(34,197,94,.4)}
+.pill.failed{background:rgba(239,68,68,.15);color:#f87171;border:1px solid rgba(239,68,68,.4)}
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+th{text-align:left;color:var(--mut);font-weight:600;padding:8px;border-bottom:1px solid var(--line)}
+td{padding:9px 8px;border-bottom:1px solid #2a1f52;vertical-align:top}
+.empty{color:var(--mut);text-align:center;padding:26px 10px;font-size:14px}
+.kv{font-size:12.5px;color:var(--mut);word-break:break-all}
+footer{margin-top:34px;color:var(--mut);font-size:12.5px;text-align:center}
+.conn{font-size:12.5px;color:var(--mut);display:flex;align-items:center;gap:6px}
+.dot{width:9px;height:9px;border-radius:50%;display:inline-block;margin-right:6px}
+.dot.up{background:var(--grn)}
+.hidden{display:none!important}
+.editor label{margin-top:14px}
+.countdown{font-variant-numeric:tabular-nums;color:var(--amb);font-weight:600}
+@media(max-width:640px){.row>*{min-width:100%}}
+@media(max-width:640px){
+  html,body{overflow-x:hidden}
+  body{font-size:16px}
+  .wrap{padding:calc(16px + env(safe-area-inset-top)) 14px calc(28px + env(safe-area-inset-bottom));padding-left:calc(14px + env(safe-area-inset-left));padding-right:calc(14px + env(safe-area-inset-right))}
+  header.top{gap:10px}
+  header.top h1{font-size:17px}
+  header.top .sub{font-size:11.5px}
+  .grid{grid-template-columns:1fr}
+  .card{padding:16px}
+  button{min-height:44px}
+  button.small{min-height:36px}
+  .tabs{position:sticky;top:0;z-index:5;background:var(--bg);padding:8px 0;margin-left:-14px;margin-right:-14px;padding-left:14px;padding-right:14px;overflow-x:auto;flex-wrap:nowrap}
+  .tabs button{flex:none;min-height:44px;padding:10px 18px}
+  input,select,textarea{font-size:16px;min-height:44px}
+  table{display:block;overflow-x:auto;-webkit-overflow-scrolling:touch}
+  footer{padding-bottom:env(safe-area-inset-bottom)}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="top">
+    <img src="../assets/logo.png" alt="Content Pipeline logo">
+    <div><h1>Content Pipeline</h1><p class="sub">AI-assisted creator workflow &middot; Created by devuvo</p></div>
+    <div class="spacer"></div>
+    <div id="connState" class="conn hidden"></div>
+    <button id="btnSignOut" class="ghost small hidden">Sign out</button>
+    <button id="btnDisconnect" class="ghost small hidden">Disconnect</button>
+  </header>
+
+  <!-- ============ SETTINGS (first run) ============ -->
+  <section id="view-settings" class="card hidden">
+    <h2>Connect your Supabase project</h2>
+    <p class="mut">Your URL and anon key are stored only in this browser's localStorage. They are never sent anywhere except your own Supabase project.</p>
+    <div id="settingsErr"></div>
+    <label>Supabase project URL</label>
+    <input id="cfgUrl" placeholder="https://xyzcompany.supabase.co" autocomplete="off" spellcheck="false">
+    <label>Supabase anon (public) key</label>
+    <input id="cfgKey" placeholder="eyJhbGciOi..." autocomplete="off" spellcheck="false">
+    <label>Draft-generator webhook URL <span class="mut">(optional — from your n8n draft-generator workflow)</span></label>
+    <input id="cfgHook" placeholder="https://your-n8n/webhook/generate-draft" autocomplete="off" spellcheck="false">
+    <div class="row" style="margin-top:14px"><div><button id="btnConnect" class="primary">Connect</button></div></div>
+    <p class="mut">No Supabase project yet? <a href="https://supabase.com" target="_blank" rel="noopener">Create a free one</a>, run <span class="kv">supabase/migrations/001_init.sql</span> in its SQL editor, then paste the URL + anon key above. Full guide in the README.</p>
+  </section>
+
+  <!-- ============ AUTH ============ -->
+  <section id="view-auth" class="card hidden">
+    <h2>Sign in</h2>
+    <div id="authErr"></div>
+    <label>Email</label>
+    <input id="authEmail" type="email" autocomplete="email">
+    <label>Password</label>
+    <input id="authPass" type="password" autocomplete="current-password">
+    <div class="row" style="margin-top:14px">
+      <div><button id="btnSignIn" class="primary">Sign in</button></div>
+      <div><button id="btnSignUp" class="ghost">Create account</button></div>
+    </div>
+  </section>
+
+  <!-- ============ APP ============ -->
+  <div id="view-app" class="hidden">
+    <nav class="tabs" id="tabs">
+      <button data-tab="topics" class="on">Topics</button>
+      <button data-tab="drafts">Drafts</button>
+      <button data-tab="schedule">Schedule</button>
+      <button data-tab="targets">Targets</button>
+    </nav>
+
+    <section id="tab-topics">
+      <div class="card">
+        <h2>Topic queue <span class="mut" id="topicsCount"></span></h2>
+        <p class="mut">Harvested by the n8n topic-harvester (every 6h). Approve the ones worth making — rejected topics stay out of the way.</p>
+        <div id="topicsList" class="grid"></div>
+      </div>
+    </section>
+
+    <section id="tab-drafts" class="hidden">
+      <div class="card">
+        <h2>Drafts</h2>
+        <div id="draftsList" class="grid"></div>
+      </div>
+      <div class="card editor hidden" id="draftEditor">
+        <h2 id="editorTitle">Edit draft</h2>
+        <div id="editorErr"></div>
+        <label>Hook</label><input id="edHook">
+        <label>Script</label><textarea id="edScript" style="min-height:160px"></textarea>
+        <label>Caption</label><textarea id="edCaption"></textarea>
+        <label>Hashtags</label><input id="edTags">
+        <label>Video file URL <span class="mut">(the finished video the publisher will upload)</span></label>
+        <input id="edMedia" placeholder="https://.../video.mp4" autocomplete="off" spellcheck="false">
+        <div class="row" style="margin-top:14px">
+          <div><button id="btnSaveDraft" class="primary">Save</button></div>
+          <div><button id="btnApproveDraft" class="warn">Approve</button></div>
+          <div><button id="btnCloseEditor" class="ghost">Close</button></div>
+        </div>
+        <h3>Schedule a post</h3>
+        <div class="row">
+          <div><label>Target</label><select id="schedTarget"></select></div>
+          <div><label>Date &amp; time</label><input id="schedAt" type="datetime-local"></div>
+        </div>
+        <div style="margin-top:12px"><button id="btnSchedule" class="primary">Queue post</button></div>
+        <div id="schedMsg" style="margin-top:10px"></div>
+      </div>
+    </section>
+
+    <section id="tab-schedule" class="hidden">
+      <div class="card">
+        <h2>Posting schedule</h2>
+        <div id="schedList"></div>
+      </div>
+    </section>
+
+    <section id="tab-targets" class="hidden">
+      <div class="card">
+        <h2>Publishing targets</h2>
+        <p class="mut">Where the n8n publisher posts. OAuth credentials live in n8n — here you only store the channel/page/account ids.</p>
+        <div id="targetsList"></div>
+        <h3>Add target</h3>
+        <div class="row">
+          <div><label>Platform</label><select id="tType">
+            <option value="youtube">YouTube</option><option value="facebook">Facebook</option>
+            <option value="instagram">Instagram</option><option value="tiktok">TikTok</option>
+          </select></div>
+          <div><label>Label</label><input id="tLabel" placeholder="Main channel"></div>
+        </div>
+        <label>Config JSON <span class="mut">(e.g. {"channel_id": "..."} — see README for shapes)</span></label>
+        <input id="tConfig" placeholder='{"channel_id": "..."}' autocomplete="off" spellcheck="false">
+        <div style="margin-top:12px"><button id="btnAddTarget" class="primary">Add target</button></div>
+        <div id="targetMsg" style="margin-top:10px"></div>
+      </div>
+    </section>
+  </div>
+
+  <footer>Content Pipeline &middot; bring your own Supabase + n8n + AI &middot; Created by devuvo</footer>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+(function(){
+"use strict";
+var $ = function(id){ return document.getElementById(id); };
+var sb = null, user = null, rtChannels = [];
+var editingDraft = null, draftCache = {}, topicCache = {}, targetCache = {};
+
+/* ---------- helpers ---------- */
+function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){
+  return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+function show(el, msg){ el.innerHTML = '<div class="err">' + esc(msg) + '</div>'; }
+function showOk(el, msg){ el.innerHTML = '<div class="okmsg">' + esc(msg) + '</div>'; }
+function clearMsg(el){ el.innerHTML = ''; }
+function setView(name){
+  ['settings','auth'].forEach(function(v){ $('view-'+v).classList.toggle('hidden', v !== name); });
+  $('view-app').classList.toggle('hidden', name === 'settings' || name === 'auth');
+  var showApp = name !== 'settings' && name !== 'auth';
+  $('btnSignOut').classList.toggle('hidden', !showApp);
+  $('btnDisconnect').classList.toggle('hidden', !showApp);
+  $('connState').classList.toggle('hidden', !showApp);
+}
+function setTab(name){
+  document.querySelectorAll('#tabs button').forEach(function(b){
+    b.classList.toggle('on', b.getAttribute('data-tab') === name); });
+  ['topics','drafts','schedule','targets'].forEach(function(t){
+    $('tab-'+t).classList.toggle('hidden', t !== name); });
+}
+document.querySelectorAll('#tabs button').forEach(function(b){
+  b.addEventListener('click', function(){ setTab(b.getAttribute('data-tab')); }); });
+
+/* ---------- settings ---------- */
+function getCfg(){ try { return JSON.parse(localStorage.getItem('cp_cfg') || 'null'); } catch(e){ return null; } }
+
+$('btnConnect').addEventListener('click', async function(){
+  clearMsg($('settingsErr'));
+  var url = $('cfgUrl').value.trim().replace(/\/+$/,''), key = $('cfgKey').value.trim();
+  var hook = $('cfgHook').value.trim();
+  if (!/^https:\/\/.+/.test(url)){ show($('settingsErr'), 'That does not look like a Supabase project URL.'); return; }
+  if (key.length < 20){ show($('settingsErr'), 'Please paste your anon (public) key.'); return; }
+  try {
+    if (typeof supabase === 'undefined' || !supabase.createClient) throw new Error('supabase-js failed to load (check your connection).');
+    var client = supabase.createClient(url, key);
+    var res = await client.from('topics').select('id', { count: 'exact', head: true });
+    if (res.error) throw res.error;
+    localStorage.setItem('cp_cfg', JSON.stringify({ url: url, anonKey: key, hookUrl: hook }));
+    sb = client;
+    boot();
+  } catch(e){
+    show($('settingsErr'), 'Could not connect: ' + (e.message || e) + ' — check the URL/key and that the migration has been run.');
+  }
+});
+
+$('btnDisconnect').addEventListener('click', async function(){
+  try { if (sb) await sb.auth.signOut(); } catch(e){}
+  rtChannels.forEach(function(ch){ try { sb.removeChannel(ch); } catch(e){} });
+  rtChannels = [];
+  localStorage.removeItem('cp_cfg'); sb = null; user = null;
+  $('cfgUrl').value = ''; $('cfgKey').value = ''; $('cfgHook').value = '';
+  setView('settings');
+});
+
+/* ---------- auth ---------- */
+$('btnSignIn').addEventListener('click', function(){ doAuth('signin'); });
+$('btnSignUp').addEventListener('click', function(){ doAuth('signup'); });
+async function doAuth(mode){
+  clearMsg($('authErr'));
+  var email = $('authEmail').value.trim(), pass = $('authPass').value;
+  if (!email || !pass){ show($('authErr'), 'Enter email and password.'); return; }
+  try {
+    var res = mode === 'signin'
+      ? await sb.auth.signInWithPassword({ email: email, password: pass })
+      : await sb.auth.signUp({ email: email, password: pass });
+    if (res.error) throw res.error;
+    user = res.data.user || (await sb.auth.getUser()).data.user;
+    enterApp();
+  } catch(e){ show($('authErr'), e.message || String(e)); }
+}
+$('btnSignOut').addEventListener('click', async function(){
+  try { if (sb) await sb.auth.signOut(); } catch(e){}
+  rtChannels.forEach(function(ch){ try { sb.removeChannel(ch); } catch(e){} });
+  rtChannels = []; user = null; setView('auth');
+});
+
+/* ---------- data ---------- */
+async function loadAll(){
+  var tr = await sb.from('topics').select('*').order('trend_score', { ascending: false });
+  if (tr.error) throw tr.error;
+  var dr = await sb.from('drafts').select('*').order('created_at', { ascending: false }).limit(200);
+  if (dr.error) throw dr.error;
+  var sr = await sb.from('scheduled_posts').select('*').order('scheduled_at', { ascending: false }).limit(200);
+  if (sr.error) throw sr.error;
+  var gr = await sb.from('publishing_targets').select('*').order('created_at');
+  if (gr.error) throw gr.error;
+  topicCache = {}; tr.data.forEach(function(t){ topicCache[t.id] = t; });
+  draftCache = {}; dr.data.forEach(function(d){ draftCache[d.id] = d; });
+  targetCache = {}; gr.data.forEach(function(g){ targetCache[g.id] = g; });
+  renderTopics(tr.data); renderDrafts(dr.data); renderSchedule(sr.data); renderTargets(gr.data);
+  var cfg = getCfg() || {};
+  $('connState').innerHTML = '<span class="dot up"></span>connected as ' + esc(user.email) +
+    '<span class="mut" style="margin-left:8px">uid: ' + esc(user.id.slice(0,8)) + '…</span>';
+}
+
+/* ---------- topics ---------- */
+function renderTopics(topics){
+  var el = $('topicsList');
+  var news = topics.filter(function(t){ return t.status === 'new'; });
+  $('topicsCount').textContent = news.length ? '(' + news.length + ' new)' : '';
+  if (!topics.length){ el.innerHTML = '<div class="empty">No topics yet. The n8n topic-harvester adds them every 6 hours.</div>'; return; }
+  el.innerHTML = topics.map(function(t){
+    return '<div class="topic"><div class="t">' + esc(t.title) + '</div>' +
+      '<div class="meta"><span class="pill ' + t.status + '">' + t.status.toUpperCase() + '</span>' +
+      '<span>score ' + t.trend_score + '</span><span>' + esc(t.source || '') + '</span></div>' +
+      '<div class="acts">' +
+      (t.status === 'new'
+        ? '<button class="small primary" data-approve="' + t.id + '">Approve</button>' +
+          '<button class="small danger" data-reject="' + t.id + '">Reject</button>'
+        : '') +
+      (t.status === 'approved'
+        ? '<button class="small warn" data-gen="' + t.id + '">Generate draft</button>' : '') +
+      '</div></div>';
+  }).join('');
+}
+$('topicsList').addEventListener('click', async function(e){
+  var b = e.target.closest('button'); if (!b) return;
+  var id;
+  if ((id = b.getAttribute('data-approve'))){
+    await sb.from('topics').update({ status: 'approved' }).eq('id', id); loadAll();
+  } else if ((id = b.getAttribute('data-reject'))){
+    await sb.from('topics').update({ status: 'rejected' }).eq('id', id); loadAll();
+  } else if ((id = b.getAttribute('data-gen'))){
+    generateDraft(id, b);
+  }
+});
+async function generateDraft(topicId, btn){
+  var cfg = getCfg() || {};
+  if (!cfg.hookUrl){ alert('Set the draft-generator webhook URL in Settings first (Disconnect, paste it, Connect).'); return; }
+  btn.disabled = true; btn.textContent = 'Drafting…';
+  try {
+    var r = await fetch(cfg.hookUrl, { method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ topic_id: topicId }) });
+    if (!r.ok) throw new Error('webhook returned ' + r.status);
+    setTab('drafts');
+  } catch(e){ alert('Draft request failed: ' + (e.message || e)); }
+  btn.disabled = false; btn.textContent = 'Generate draft';
+}
+
+/* ---------- drafts ---------- */
+function renderDrafts(drafts){
+  var el = $('draftsList');
+  if (!drafts.length){ el.innerHTML = '<div class="empty">No drafts yet. Approve a topic, then hit Generate draft.</div>'; return; }
+  el.innerHTML = drafts.map(function(d){
+    var t = topicCache[d.topic_id];
+    return '<div class="topic"><div class="t">' + esc(d.hook || '(untitled)') + '</div>' +
+      '<div class="meta"><span class="pill ' + d.status + '">' + d.status.toUpperCase() + '</span>' +
+      '<span>' + esc(t ? t.title : '') + '</span></div>' +
+      '<div class="acts"><button class="small" data-edit="' + d.id + '">Open editor</button></div></div>';
+  }).join('');
+}
+$('draftsList').addEventListener('click', function(e){
+  var b = e.target.closest('[data-edit]'); if (!b) return;
+  openEditor(b.getAttribute('data-edit'));
+});
+function openEditor(id){
+  var d = draftCache[id]; if (!d) return;
+  editingDraft = id;
+  $('editorTitle').textContent = 'Edit draft';
+  $('edHook').value = d.hook || ''; $('edScript').value = d.script_text || '';
+  $('edCaption').value = d.caption || ''; $('edTags').value = d.hashtags || '';
+  $('edMedia').value = d.media_url || '';
+  var sel = $('schedTarget');
+  sel.innerHTML = Object.values(targetCache).filter(function(t){ return t.is_active; })
+    .map(function(t){ return '<option value="' + t.id + '">' + esc(t.label) + ' (' + t.type + ')</option>'; }).join('')
+    || '<option value="">— no active targets —</option>';
+  clearMsg($('editorErr')); clearMsg($('schedMsg'));
+  $('draftEditor').classList.remove('hidden');
+  $('draftEditor').scrollIntoView({ behavior: 'smooth' });
+}
+$('btnCloseEditor').addEventListener('click', function(){
+  $('draftEditor').classList.add('hidden'); editingDraft = null;
+});
+function editorBody(){
+  return { hook: $('edHook').value.trim(), script_text: $('edScript').value.trim(),
+    caption: $('edCaption').value.trim(), hashtags: $('edTags').value.trim(),
+    media_url: $('edMedia').value.trim() || null };
+}
+$('btnSaveDraft').addEventListener('click', async function(){
+  if (!editingDraft) return;
+  var r = await sb.from('drafts').update(editorBody()).eq('id', editingDraft);
+  if (r.error) show($('editorErr'), r.error.message);
+  else { showOk($('editorErr'), 'Saved.'); loadAll(); }
+});
+$('btnApproveDraft').addEventListener('click', async function(){
+  if (!editingDraft) return;
+  var body = editorBody(); body.status = 'approved';
+  var r = await sb.from('drafts').update(body).eq('id', editingDraft);
+  if (r.error) show($('editorErr'), r.error.message);
+  else { showOk($('editorErr'), 'Approved — ready to schedule.'); loadAll(); }
+});
+$('btnSchedule').addEventListener('click', async function(){
+  clearMsg($('schedMsg'));
+  if (!editingDraft){ show($('schedMsg'), 'Open a draft first.'); return; }
+  var tid = $('schedTarget').value, at = $('schedAt').value;
+  if (!tid){ show($('schedMsg'), 'Add an active publishing target first (Targets tab).'); return; }
+  if (!at){ show($('schedMsg'), 'Pick a date and time.'); return; }
+  var r = await sb.from('scheduled_posts').insert({
+    draft_id: editingDraft, target_id: tid,
+    scheduled_at: new Date(at).toISOString(), status: 'queued' });
+  if (r.error) show($('schedMsg'), r.error.message);
+  else { showOk($('schedMsg'), 'Queued. The n8n publisher will post it on schedule.'); loadAll(); }
+});
+
+/* ---------- schedule ---------- */
+function countdown(to){
+  var ms = new Date(to).getTime() - Date.now();
+  if (ms <= 0) return 'due now';
+  var s = Math.floor(ms / 1000), d = Math.floor(s / 86400), h = Math.floor(s % 86400 / 3600), m = Math.floor(s % 3600 / 60);
+  return (d ? d + 'd ' : '') + (h ? h + 'h ' : '') + m + 'm';
+}
+function renderSchedule(posts){
+  var el = $('schedList');
+  if (!posts.length){ el.innerHTML = '<div class="empty">Nothing scheduled. Open a draft, approve it, and queue a post.</div>'; return; }
+  el.innerHTML = '<table><tr><th>Draft</th><th>Target</th><th>When</th><th>Status</th><th></th></tr>' +
+    posts.map(function(p){
+      var d = draftCache[p.draft_id], t = targetCache[p.target_id];
+      var when = new Date(p.scheduled_at).toLocaleString();
+      var cd = p.status === 'queued' ? ' <span class="countdown">(' + countdown(p.scheduled_at) + ')</span>' : '';
+      var link = p.posted_url ? ' <a href="' + esc(p.posted_url) + '" target="_blank" rel="noopener">view</a>' : '';
+      var err = p.error ? '<div class="kv">' + esc(p.error) + '</div>' : '';
+      return '<tr><td>' + esc(d ? (d.hook || d.id.slice(0,8)) : '?') + '</td>' +
+        '<td>' + esc(t ? (t.label + ' (' + t.type + ')') : '?') + '</td>' +
+        '<td>' + esc(when) + cd + '</td>' +
+        '<td><span class="pill ' + p.status + '">' + p.status.toUpperCase() + '</span>' + link + err + '</td>' +
+        '<td>' + (p.status === 'queued' ? '<button class="small danger" data-cancel="' + p.id + '">Cancel</button>' : '') + '</td></tr>';
+    }).join('') + '</table>';
+}
+$('schedList').addEventListener('click', async function(e){
+  var b = e.target.closest('[data-cancel]'); if (!b) return;
+  await sb.from('scheduled_posts').delete().eq('id', b.getAttribute('data-cancel'));
+  loadAll();
+});
+
+/* ---------- targets ---------- */
+function renderTargets(targets){
+  var el = $('targetsList');
+  if (!targets.length){ el.innerHTML = '<div class="empty">No targets yet. Add where the publisher should post.</div>'; return; }
+  el.innerHTML = '<table><tr><th>Label</th><th>Platform</th><th>Config</th><th></th></tr>' +
+    targets.map(function(t){
+      return '<tr><td>' + esc(t.label) + '</td><td><span class="pill ' + (t.is_active ? 'approved' : 'rejected') + '">' +
+        esc(t.type.toUpperCase()) + '</span></td>' +
+        '<td class="kv">' + esc(JSON.stringify(t.config)) + '</td>' +
+        '<td><button class="small danger" data-delt="' + t.id + '">Delete</button></td></tr>';
+    }).join('') + '</table>';
+}
+$('targetsList').addEventListener('click', async function(e){
+  var b = e.target.closest('[data-delt]'); if (!b) return;
+  await sb.from('publishing_targets').delete().eq('id', b.getAttribute('data-delt'));
+  loadAll();
+});
+$('btnAddTarget').addEventListener('click', async function(){
+  clearMsg($('targetMsg'));
+  var cfg;
+  try { cfg = $('tConfig').value.trim() ? JSON.parse($('tConfig').value) : {}; }
+  catch(e){ show($('targetMsg'), 'Config is not valid JSON.'); return; }
+  var r = await sb.from('publishing_targets').insert({
+    user_id: user.id, type: $('tType').value,
+    label: $('tLabel').value.trim() || $('tType').value, config: cfg });
+  if (r.error) show($('targetMsg'), r.error.message);
+  else { showOk($('targetMsg'), 'Target added.'); $('tLabel').value = ''; $('tConfig').value = ''; loadAll(); }
+});
+
+/* ---------- realtime ---------- */
+function subscribeAll(){
+  rtChannels.forEach(function(ch){ try { sb.removeChannel(ch); } catch(e){} });
+  rtChannels = [];
+  ['topics','drafts','scheduled_posts'].forEach(function(tbl){
+    var ch = sb.channel('cp-' + tbl)
+      .on('postgres_changes', { event: '*', schema: 'public', table: tbl }, function(){ loadAll(); })
+      .subscribe();
+    rtChannels.push(ch);
+  });
+}
+
+/* ---------- boot ---------- */
+async function enterApp(){
+  setView('app'); setTab('topics');
+  try { await loadAll(); subscribeAll(); }
+  catch(e){
+    $('topicsList').innerHTML = '<div class="empty">Connected, but could not load data: ' +
+      esc(e.message || e) + ' — did you run the migration?</div>';
+  }
+}
+async function boot(){
+  var cfg = getCfg();
+  if (!cfg){ setView('settings'); return; }
+  try {
+    if (typeof supabase === 'undefined' || !supabase.createClient) throw new Error('supabase-js failed to load.');
+    sb = supabase.createClient(cfg.url, cfg.anonKey);
+    var ses = await sb.auth.getSession();
+    user = (ses.data && ses.data.session && ses.data.session.user) || null;
+    sb.auth.onAuthStateChange(function(ev, session){
+      user = (session && session.user) || null;
+      if (ev === 'SIGNED_OUT'){ setView('auth'); }
+    });
+    if (user) enterApp(); else setView('auth');
+  } catch(e){
+    setView('settings');
+    show($('settingsErr'), 'Saved connection failed: ' + (e.message || e));
+  }
+}
+boot();
+})();
+
+/* service worker (PWA) — silent no-op on file:// */
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function(){
+    navigator.serviceWorker.register('./sw.js').catch(function(){});
+  });
+}
+</script>
+</body>
+</html>

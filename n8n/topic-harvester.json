@@ -1,0 +1,353 @@
+{
+  "name": "Content Pipeline \u2014 Topic Harvester",
+  "nodes": [
+    {
+      "id": "cp-001",
+      "name": "SETUP \u2014 read me first",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        240,
+        80
+      ],
+      "parameters": {
+        "content": "## Topic harvester \u2014 setup\n1. Create a **Supabase API** credential in n8n with your project's **service_role** key (Project Settings \u2192 API \u2192 Reveal). Attach it to the two Supabase nodes below.\n2. Open the **Config** node and paste your Supabase **auth user UUID** into `user_id` (find it in the dashboard: sign in \u2192 Settings shows your user id). Harvested topics are stored under your account.\n3. Adjust `max_topics` / source weights if you like, then **Activate** the workflow (toggle, top-right). It runs every 6 hours.",
+        "height": 260,
+        "width": 560,
+        "color": 4
+      }
+    },
+    {
+      "id": "cp-002",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        240,
+        480
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 6
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "cp-005",
+      "name": "Config",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        460,
+        480
+      ],
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "cp-003",
+              "name": "user_id",
+              "type": "string",
+              "value": "PASTE_YOUR_SUPABASE_USER_UUID"
+            },
+            {
+              "id": "cp-004",
+              "name": "max_topics",
+              "type": "number",
+              "value": 20
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "cp-006",
+      "name": "RSS Trends",
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1,
+      "position": [
+        680,
+        380
+      ],
+      "parameters": {
+        "url": "https://trends.google.com/trendingsearches/daily/rss?geo=US"
+      }
+    },
+    {
+      "id": "cp-007",
+      "name": "RSS News",
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1,
+      "position": [
+        900,
+        580
+      ],
+      "parameters": {
+        "url": "https://feeds.bbci.co.uk/news/rss.xml"
+      }
+    },
+    {
+      "id": "cp-008",
+      "name": "Tag trends",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1120,
+        380
+      ],
+      "parameters": {
+        "jsCode": "return $input.all().map(i => ({json: {...i.json, _source: 'google_trends', _weight: 3}}));",
+        "mode": "runOnceForAllItems"
+      }
+    },
+    {
+      "id": "cp-009",
+      "name": "Tag news + merge",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1340,
+        480
+      ],
+      "parameters": {
+        "jsCode": "const prev = $('Tag trends').all().map(i => i.json);\nconst mine = $input.all().map(i => ({...i.json, _source: 'bbc_news', _weight: 2}));\nreturn [...prev, ...mine].map(json => ({json}));",
+        "mode": "runOnceForAllItems"
+      }
+    },
+    {
+      "id": "cp-010",
+      "name": "RSS Hacker News",
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1,
+      "position": [
+        1560,
+        580
+      ],
+      "parameters": {
+        "url": "https://news.ycombinator.com/rss"
+      }
+    },
+    {
+      "id": "cp-011",
+      "name": "Tag HN + merge",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1780,
+        480
+      ],
+      "parameters": {
+        "jsCode": "const prev = $('Tag news + merge').all().map(i => i.json);\nconst mine = $input.all().map(i => ({...i.json, _source: 'hacker_news', _weight: 1}));\nreturn [...prev, ...mine].map(json => ({json}));",
+        "mode": "runOnceForAllItems"
+      }
+    },
+    {
+      "id": "cp-012",
+      "name": "Normalize + score",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2000,
+        480
+      ],
+      "parameters": {
+        "jsCode": "const cfg = $('Config').first().json;\nconst seen = new Set();\nconst out = [];\nfor (const it of $input.all().map(i => i.json)) {\n  const title = (it.title || '').trim();\n  if (!title) continue;\n  const key = title.toLowerCase();\n  if (seen.has(key)) continue;\n  seen.add(key);\n  out.push({ title, source: it._source || 'rss',\n    trend_score: (it._weight || 1) * 10,\n    user_id: cfg.user_id, status: 'new' });\n}\nout.sort((a,b) => b.trend_score - a.trend_score);\nreturn out.slice(0, Number(cfg.max_topics) || 20).map(json => ({json}));",
+        "mode": "runOnceForAllItems"
+      }
+    },
+    {
+      "id": "cp-013",
+      "name": "Get existing titles",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        2220,
+        480
+      ],
+      "parameters": {
+        "resource": "row",
+        "operation": "getAll",
+        "tableId": "topics",
+        "returnAll": true,
+        "filterType": "manual",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "user_id",
+              "condition": "equal",
+              "keyValue": "={{$('Config').first().json.user_id}}"
+            }
+          ]
+        }
+      },
+      "credentials": {
+        "supabaseApi": {
+          "id": "",
+          "name": "Supabase service_role (create me)"
+        }
+      }
+    },
+    {
+      "id": "cp-014",
+      "name": "Drop already-saved",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2440,
+        480
+      ],
+      "parameters": {
+        "jsCode": "const have = new Set($('Get existing titles').all().map(i => (i.json.title||'').toLowerCase()));\nreturn $input.all().filter(i => !have.has((i.json.title||'').toLowerCase()));",
+        "mode": "runOnceForAllItems"
+      }
+    },
+    {
+      "id": "cp-015",
+      "name": "Insert topics",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        2660,
+        480
+      ],
+      "parameters": {
+        "resource": "row",
+        "operation": "create",
+        "tableId": "topics"
+      },
+      "credentials": {
+        "supabaseApi": {
+          "id": "",
+          "name": "Supabase service_role (create me)"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Config": {
+      "main": [
+        [
+          {
+            "node": "RSS Trends",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "RSS News",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "RSS Trends": {
+      "main": [
+        [
+          {
+            "node": "Tag trends",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "RSS News": {
+      "main": [
+        [
+          {
+            "node": "Tag news + merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tag news + merge": {
+      "main": [
+        [
+          {
+            "node": "RSS Hacker News",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "RSS Hacker News": {
+      "main": [
+        [
+          {
+            "node": "Tag HN + merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tag HN + merge": {
+      "main": [
+        [
+          {
+            "node": "Normalize + score",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize + score": {
+      "main": [
+        [
+          {
+            "node": "Get existing titles",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get existing titles": {
+      "main": [
+        [
+          {
+            "node": "Drop already-saved",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Drop already-saved": {
+      "main": [
+        [
+          {
+            "node": "Insert topics",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {},
+  "pinData": {},
+  "tags": []
+}

@@ -1,0 +1,623 @@
+{
+  "name": "Content Pipeline \u2014 Publisher",
+  "nodes": [
+    {
+      "id": "cp-023",
+      "name": "SETUP \u2014 read me first",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        240,
+        80
+      ],
+      "parameters": {
+        "content": "## Publisher \u2014 setup\n1. Attach your **Supabase service_role** credential to the Supabase nodes.\n2. For each platform you publish to, create the credential in n8n and attach it:\n   - **YouTube**: Google OAuth2 (enable YouTube Data API v3 in Google Cloud).\n   - **Facebook / Instagram**: Header Auth credentials holding your Page/User access token (the node sends it as a Bearer token; create one credential per platform and name it).\n   - **TikTok**: Header Auth credential with your TikTok access token (requires an approved TikTok developer app).\n3. Each draft needs `media_url` set (the finished video file URL) \u2014 the publisher downloads it, then uploads.\n4. **Activate** this workflow. It checks every 15 minutes for queued posts whose time has come.",
+        "height": 320,
+        "width": 600,
+        "color": 4
+      }
+    },
+    {
+      "id": "cp-024",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        240,
+        520
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 15
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "cp-025",
+      "name": "Get due posts",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        460,
+        520
+      ],
+      "parameters": {
+        "resource": "row",
+        "operation": "getAll",
+        "tableId": "scheduled_posts",
+        "returnAll": true,
+        "filterType": "manual",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "status",
+              "condition": "equal",
+              "keyValue": "queued"
+            },
+            {
+              "keyName": "scheduled_at",
+              "condition": "smallerEqual",
+              "keyValue": "={{$now.toISO()}}"
+            }
+          ]
+        }
+      },
+      "credentials": {
+        "supabaseApi": {
+          "id": "",
+          "name": "Supabase service_role (create me)"
+        }
+      }
+    },
+    {
+      "id": "cp-026",
+      "name": "Loop posts",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        680,
+        520
+      ],
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      }
+    },
+    {
+      "id": "cp-027",
+      "name": "Get draft",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        900,
+        520
+      ],
+      "parameters": {
+        "resource": "row",
+        "operation": "get",
+        "tableId": "drafts",
+        "filterType": "manual",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "condition": "equal",
+              "keyValue": "={{$json.draft_id}}"
+            }
+          ]
+        }
+      },
+      "credentials": {
+        "supabaseApi": {
+          "id": "",
+          "name": "Supabase service_role (create me)"
+        }
+      }
+    },
+    {
+      "id": "cp-028",
+      "name": "Get target",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        1120,
+        520
+      ],
+      "parameters": {
+        "resource": "row",
+        "operation": "get",
+        "tableId": "publishing_targets",
+        "filterType": "manual",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "condition": "equal",
+              "keyValue": "={{$('Loop posts').first().json.target_id}}"
+            }
+          ]
+        }
+      },
+      "credentials": {
+        "supabaseApi": {
+          "id": "",
+          "name": "Supabase service_role (create me)"
+        }
+      }
+    },
+    {
+      "id": "cp-029",
+      "name": "Download video",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [
+        1340,
+        520
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "={{$('Get draft').first().json.media_url}}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          }
+        },
+        "outputPropertyName": "video"
+      }
+    },
+    {
+      "id": "cp-030",
+      "name": "Switch on platform",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        1560,
+        520
+      ],
+      "parameters": {
+        "dataType": "string",
+        "value1": "={{$('Get target').first().json.type}}",
+        "rules": {
+          "rules": [
+            {
+              "operation": "equal",
+              "value2": "youtube"
+            },
+            {
+              "operation": "equal",
+              "value2": "facebook"
+            },
+            {
+              "operation": "equal",
+              "value2": "instagram"
+            },
+            {
+              "operation": "equal",
+              "value2": "tiktok"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "cp-031",
+      "name": "YouTube upload",
+      "type": "n8n-nodes-base.youTube",
+      "typeVersion": 1,
+      "position": [
+        1780,
+        280
+      ],
+      "parameters": {
+        "resource": "video",
+        "operation": "upload",
+        "binaryPropertyName": "video",
+        "title": "={{$('Get draft').first().json.hook}}",
+        "description": "={{$('Get draft').first().json.caption + ' ' + $('Get draft').first().json.hashtags}}",
+        "options": {
+          "categoryId": "22"
+        }
+      },
+      "credentials": {
+        "youTubeOAuth2Api": {
+          "id": "",
+          "name": "YouTube OAuth2 (create me)"
+        }
+      }
+    },
+    {
+      "id": "cp-032",
+      "name": "Facebook upload",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [
+        2000,
+        440
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v21.0/{{$('Get target').first().json.config.page_id}}/videos",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "parameterType": "formBinaryData",
+              "name": "source",
+              "inputDataFieldName": "video"
+            },
+            {
+              "name": "description",
+              "value": "={{$('Get draft').first().json.caption}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "",
+          "name": "Facebook Page token (create me)"
+        }
+      }
+    },
+    {
+      "id": "cp-033",
+      "name": "IG create container",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [
+        2220,
+        600
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v21.0/{{$('Get target').first().json.config.account_id}}/media",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "media_type",
+              "value": "REELS"
+            },
+            {
+              "name": "video_url",
+              "value": "={{$('Get draft').first().json.media_url}}"
+            },
+            {
+              "name": "caption",
+              "value": "={{$('Get draft').first().json.caption + ' ' + $('Get draft').first().json.hashtags}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "",
+          "name": "Instagram token (create me)"
+        }
+      }
+    },
+    {
+      "id": "cp-034",
+      "name": "IG publish container",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [
+        2550,
+        600
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v21.0/{{$('Get target').first().json.config.account_id}}/media_publish",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "creation_id",
+              "value": "={{$json.id}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "",
+          "name": "Instagram token (create me)"
+        }
+      }
+    },
+    {
+      "id": "cp-035",
+      "name": "TikTok upload",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [
+        2660,
+        760
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://open.tiktokapis.com/v2/post/publish/video/init/",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{JSON.stringify({post_info:{title:$('Get draft').first().json.caption},source_info:{source:'PULL_FROM_URL',video_url:$('Get draft').first().json.media_url}})}}",
+        "options": {}
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "",
+          "name": "TikTok token (create me)"
+        }
+      }
+    },
+    {
+      "id": "cp-036",
+      "name": "Mark posted",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        3100,
+        520
+      ],
+      "parameters": {
+        "resource": "row",
+        "operation": "update",
+        "tableId": "scheduled_posts",
+        "filterType": "manual",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "condition": "equal",
+              "keyValue": "={{$('Loop posts').first().json.id}}"
+            }
+          ]
+        },
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "status",
+              "fieldValue": "posted"
+            }
+          ]
+        }
+      },
+      "credentials": {
+        "supabaseApi": {
+          "id": "",
+          "name": "Supabase service_role (create me)"
+        }
+      }
+    },
+    {
+      "id": "cp-037",
+      "name": "Mark draft published",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        3320,
+        520
+      ],
+      "parameters": {
+        "resource": "row",
+        "operation": "update",
+        "tableId": "drafts",
+        "filterType": "manual",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "condition": "equal",
+              "keyValue": "={{$('Loop posts').first().json.draft_id}}"
+            }
+          ]
+        },
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "status",
+              "fieldValue": "published"
+            }
+          ]
+        }
+      },
+      "credentials": {
+        "supabaseApi": {
+          "id": "",
+          "name": "Supabase service_role (create me)"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Get due posts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get due posts": {
+      "main": [
+        [
+          {
+            "node": "Loop posts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop posts": {
+      "main": [
+        [
+          {
+            "node": "Get draft",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get draft": {
+      "main": [
+        [
+          {
+            "node": "Get target",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get target": {
+      "main": [
+        [
+          {
+            "node": "Download video",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download video": {
+      "main": [
+        [
+          {
+            "node": "Switch on platform",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch on platform": {
+      "main": [
+        [
+          {
+            "node": "YouTube upload",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Facebook upload",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "IG create container",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "TikTok upload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IG create container": {
+      "main": [
+        [
+          {
+            "node": "IG publish container",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "YouTube upload": {
+      "main": [
+        [
+          {
+            "node": "Mark posted",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Facebook upload": {
+      "main": [
+        [
+          {
+            "node": "Mark posted",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IG publish container": {
+      "main": [
+        [
+          {
+            "node": "Mark posted",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "TikTok upload": {
+      "main": [
+        [
+          {
+            "node": "Mark posted",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark posted": {
+      "main": [
+        [
+          {
+            "node": "Mark draft published",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark draft published": {
+      "main": [
+        [
+          {
+            "node": "Loop posts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {},
+  "pinData": {},
+  "tags": []
+}

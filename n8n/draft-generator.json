@@ -1,0 +1,216 @@
+{
+  "name": "Content Pipeline \u2014 Draft Generator",
+  "nodes": [
+    {
+      "id": "cp-016",
+      "name": "SETUP \u2014 read me first",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        240,
+        80
+      ],
+      "parameters": {
+        "content": "## Draft generator \u2014 setup\n1. Attach your **Supabase service_role** credential to the Supabase nodes.\n2. Create an **OpenAI API** credential (https://platform.openai.com \u2192 API keys) and attach it to the **AI draft** node. Usage is billed to YOUR OpenAI account.\n3. Trigger: POST to this workflow's webhook URL with JSON `{\"topic_id\": \"...\"}`. The dashboard's **Generate draft** button does this for you (configure the URL in the dashboard).\n4. The AI returns JSON {hook, script_text, caption, hashtags}; the Code node validates it before insert.",
+        "height": 280,
+        "width": 560,
+        "color": 4
+      }
+    },
+    {
+      "id": "cp-017",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        240,
+        480
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "generate-draft",
+        "responseMode": "responseNode",
+        "options": {}
+      }
+    },
+    {
+      "id": "cp-018",
+      "name": "Get topic",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        460,
+        480
+      ],
+      "parameters": {
+        "resource": "row",
+        "operation": "get",
+        "tableId": "topics",
+        "filterType": "manual",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "condition": "equal",
+              "keyValue": "={{$json.body.topic_id}}"
+            }
+          ]
+        }
+      },
+      "credentials": {
+        "supabaseApi": {
+          "id": "",
+          "name": "Supabase service_role (create me)"
+        }
+      }
+    },
+    {
+      "id": "cp-019",
+      "name": "AI draft",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 1,
+      "position": [
+        680,
+        480
+      ],
+      "parameters": {
+        "resource": "text",
+        "operation": "message",
+        "model": "gpt-4o-mini",
+        "messages": {
+          "values": [
+            {
+              "role": "system",
+              "content": "You write short-form video scripts (30-60s). Reply with ONLY valid JSON, no markdown fences, with exactly these keys: hook (one punchy opening line, max 15 words), script_text (the spoken script: HOOK line, then 3 short beats, then a call-to-action; plain text), caption (2-3 sentences for the post description), hashtags (space-separated, max 8, each starting with #)."
+            },
+            {
+              "role": "user",
+              "content": "={{'Write a short-form video script about: ' + $json.title}}"
+            }
+          ]
+        },
+        "options": {
+          "maxTokens": 1200,
+          "temperature": 0.8
+        }
+      },
+      "credentials": {
+        "openAiApi": {
+          "id": "",
+          "name": "OpenAI API (create me)"
+        }
+      }
+    },
+    {
+      "id": "cp-020",
+      "name": "Parse + validate",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        900,
+        480
+      ],
+      "parameters": {
+        "jsCode": "const topic = $('Get topic').first().json;\nlet raw = $input.first().json.message || $input.first().json.content || '';\nraw = String(raw).replace(/^```json\\s*/,'').replace(/```\\s*$/,'').trim();\nlet d;\ntry { d = JSON.parse(raw); } catch (e) { throw new Error('AI did not return valid JSON'); }\nfor (const k of ['hook','script_text','caption','hashtags']) {\n  if (!d[k] || typeof d[k] !== 'string') throw new Error('AI response missing field: ' + k);\n}\nreturn [{ json: { topic_id: topic.id, user_id: topic.user_id, hook: d.hook.slice(0,300),\n  script_text: d.script_text, caption: d.caption, hashtags: d.hashtags.slice(0,200),\n  status: 'draft' } }];",
+        "mode": "runOnceForAllItems"
+      }
+    },
+    {
+      "id": "cp-021",
+      "name": "Insert draft",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        1120,
+        480
+      ],
+      "parameters": {
+        "resource": "row",
+        "operation": "create",
+        "tableId": "drafts"
+      },
+      "credentials": {
+        "supabaseApi": {
+          "id": "",
+          "name": "Supabase service_role (create me)"
+        }
+      }
+    },
+    {
+      "id": "cp-022",
+      "name": "Respond",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        1340,
+        480
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{({ ok: true, draft_id: $('Insert draft').first().json.id })}}",
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Get topic",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get topic": {
+      "main": [
+        [
+          {
+            "node": "AI draft",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI draft": {
+      "main": [
+        [
+          {
+            "node": "Parse + validate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse + validate": {
+      "main": [
+        [
+          {
+            "node": "Insert draft",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert draft": {
+      "main": [
+        [
+          {
+            "node": "Respond",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {},
+  "pinData": {},
+  "tags": []
+}
